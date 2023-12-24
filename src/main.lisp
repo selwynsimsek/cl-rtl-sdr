@@ -3,7 +3,7 @@
 
 ;; low level
 
-;; (cffi:defctype rtlsdr-dev :pointer)
+(cffi:defctype rtlsdr-dev :pointer)
 
 (cffi:defcfun "rtlsdr_get_device_count" :uint32)
 
@@ -19,12 +19,12 @@
 (cffi:defcfun "rtlsdr_get_index_by_serial" :int
   (serial (:pointer :char)))
 
-;; (cffi:defcfun "rtlsdr_open" :int
-;;   (dev (:pointer rtlsdr-dev))
-;;   (index :uint32))
+(cffi:defcfun "rtlsdr_open" :int
+  (dev (:pointer rtlsdr-dev))
+  (index :uint32))
 
-;; (cffi:defcfun "rtlsdr_close" :int
-;;   (dev (:pointer :void)))
+(cffi:defcfun "rtlsdr_close" :int
+  (dev rtlsdr-dev))
 
 ;; ;; configuration functions
 
@@ -79,8 +79,8 @@
   :r820t
   :r828d)
 
-;; (cffi:defcfun "rtlsdr_get_tuner_type" tuner
-;;   (dev (:pointer :void)))
+(cffi:defcfun "rtlsdr_get_tuner_type" tuner
+  (dev rtlsdr-dev))
 
 ;; (cffi:defcfun "rtlsdr_get_tuner_gains" :int
 ;;   (dev (:pointer :void))
@@ -183,8 +183,15 @@
         (error "name was null"))
       index)))
 
-(defun open-sdr (&optional (value 0))
-  (let ((pointer (cffi:foreign-alloc :pointer)))
-    (rtlsdr-open pointer value)
-    pointer;(cffi:mem-ref pointer :pointer)
-    ))
+(defmacro with-rtl-sdr ((var &optional (index 0)) &body body)
+  (let ((index-name (gensym "INDEX"))
+        (pointer-name (gensym "POINTER")))
+    (assert (symbolp var))
+    `(let ((,index-name ,index))
+       (cffi:with-foreign-pointer (,pointer-name 1)
+         (unless (zerop (rtlsdr-open ,pointer-name ,index-name))
+           (error "open not zero"))
+         (let ((,var (cffi:mem-ref ,pointer-name :pointer)))
+           (unwind-protect
+                (progn ,@body)
+             (rtlsdr-close ,var)))))))
